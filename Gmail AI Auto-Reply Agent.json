@@ -1,0 +1,316 @@
+{
+  "name": "Gmail AI Auto-Reply Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 1. Gmail Trigger\nPolls Gmail every minute for new UNREAD emails and returns the full message (sender, subject, body) for analysis.",
+        "height": 200,
+        "width": 300
+      },
+      "id": "00f67700-a795-4c82-8a0e-39a8a15e8311",
+      "name": "Sticky Note 00f67700",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2-3. AI Email Assistant\nReads sender, subject and body, classifies the email (genuine / promotional / spam / newsletter) and drafts a polite, concise, professional reply. Uses OpenAI GPT + a structured output parser.",
+        "height": 200,
+        "width": 300
+      },
+      "id": "52cc3bcd-40b6-479b-bbd0-c9780ba31b4a",
+      "name": "Sticky Note 52cc3bcd",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4-5. Should Reply?\nOnly genuine emails continue. Promotional, spam and newsletter emails hit the false branch and are ignored (no reply).",
+        "height": 200,
+        "width": 300
+      },
+      "id": "a4fc5ae4-930f-45ba-a9d5-06ada6d0548d",
+      "name": "Sticky Note a4fc5ae4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 7-8. Reply & Mark as Read\nSends the generated reply to the sender in the original thread, then marks the original email as read.",
+        "height": 200,
+        "width": 300
+      },
+      "id": "21b2c405-b613-4c9b-ae80-a5cf668ed7d2",
+      "name": "Sticky Note 21b2c405",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "id": "8a540881-c391-484f-9f26-980f87f5955d",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        112
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "xDyHGvMXMZNbWHoU",
+          "name": "Gmail account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this incoming email and produce a JSON decision.\n\nFrom: {{ $json.from }}\nSubject: {{ $json.subject }}\n\nBody:\n{{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a professional email assistant that triages an inbox and drafts replies.\n\nClassify the email into one of: \"genuine\", \"promotional\", \"spam\", \"newsletter\".\n- Set should_reply = true ONLY for \"genuine\" emails written by a real person that expect a response.\n- Set should_reply = false for promotional, spam, marketing, or newsletter emails.\n\nWhen should_reply is true, write a reply that is:\n- Polite, warm, and professional\n- Concise (2-5 short sentences)\n- Directly addressing the sender's message\n- Free of placeholders like [Name]; sign off generically (e.g. \"Best regards\")\n\nWhen should_reply is false, set reply to an empty string.\nReturn only the structured fields requested."
+        }
+      },
+      "id": "86665073-7dd4-438f-827c-313c8b5519c8",
+      "name": "AI Email Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "a6d110f8-a8e7-4d07-9753-eec09180f27b",
+      "name": "OpenAI GPT Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        336
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"enum\":[\"genuine\",\"promotional\",\"spam\",\"newsletter\"],\"description\":\"The classification of the email\"},\"should_reply\":{\"type\":\"boolean\",\"description\":\"True only for genuine emails that warrant a reply\"},\"reply\":{\"type\":\"string\",\"description\":\"The professional reply text, or empty string when should_reply is false\"}},\"required\":[\"category\",\"should_reply\",\"reply\"]}"
+      },
+      "id": "f65d40a2-de7c-4636-aaae-97c853607689",
+      "name": "Reply Decision Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        368,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "should-reply",
+              "leftValue": "={{ $json.output.should_reply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2753380f-9519-470a-ac99-684dd7582c92",
+      "name": "Should Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        576,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "emailType": "text",
+        "message": "={{ $json.output.reply }}",
+        "options": {
+          "replyToSenderOnly": true
+        }
+      },
+      "id": "59208de9-1089-4e31-872d-d9cc7b5c0212",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        112
+      ],
+      "webhookId": "f5829e16-796e-474d-abe2-7e4cdda0a47d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "xDyHGvMXMZNbWHoU",
+          "name": "Gmail account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}"
+      },
+      "id": "8a05386c-3d02-4c39-8d06-bdd22009b106",
+      "name": "Mark as Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        112
+      ],
+      "webhookId": "61070f3c-ba77-45d2-a861-5a5cfbffbcbe",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "xDyHGvMXMZNbWHoU",
+          "name": "Gmail account 8"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Email Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Email Assistant": {
+      "main": [
+        [
+          {
+            "node": "Should Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI GPT Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Email Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Decision Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Email Assistant",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Reply?": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Mark as Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "errorWorkflow": "VF4oIosJsvNPZIIV"
+  },
+  "versionId": "8935e48d-b389-465d-a81e-9e6b90328c7e",
+  "meta": {
+    "instanceId": "9d8409ad1626ebd461337d555d9f5b25da753acdb88274ede77491c2998cb376"
+  },
+  "nodeGroups": [],
+  "id": "yhR2ohqWwMmNBBLt",
+  "tags": []
+}
